@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -214,6 +216,7 @@ type leadDetails struct {
 	Link       airtable.URL          `json:"Link,omitempty"`
 	Email      airtable.Email        `json:"Email,omitempty"`
 	Phone      airtable.Phone        `json:"Phone,omitempty"`
+	Gob        airtable.ShortText    `json:"Gob,omitempty"`
 }
 
 type salesDetails struct {
@@ -242,18 +245,58 @@ func NewActivityDB(c *airtable.Client) *airtable.Table[Activity] {
 // Utils
 
 func prospectToLeadDetails(prospect prospety.Prospect) *leadDetails {
+	// turn the whole prospect into a base64 encoded gob
+	gobStr, err := encodeStringGob(&prospect)
+	if err != nil {
+		log.Fatalf("failed to encode prospect: %v", err)
+	}
+
 	return &leadDetails{
-		//Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
+		Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
 		Name:       airtable.ShortText(prospect.Name),
 		FollowersK: airtable.Number(prospect.Subscribers / 1000),
 		Platform:   airtable.SingleSelect("YouTube"),
 		Link:       airtable.URL(prospect.URL),
 		Email:      airtable.Email(prospect.Email),
 		Phone:      airtable.Phone(prospect.Phone),
+		Gob:        airtable.ShortText(gobStr),
 	}
 }
 
+func encodeStringGob(p *prospety.Prospect) (string, error) {
+	// turn the whole prospect into a base64 encoded gob
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(p); err != nil {
+		log.Fatalf("failed to encode prospect: %v", err)
+	}
+
+	// now turn it into a string
+	gobStr := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	return gobStr, nil
+}
+
+func decodeStringGob(s string) (p *prospety.Prospect, err error) {
+	// decode the string into a gob
+	gobBytes, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	// decode the gob into the prospect
+	dec := gob.NewDecoder(bytes.NewReader(gobBytes))
+	if err := dec.Decode(p); err != nil {
+		return nil, fmt.Errorf("failed to decode gob: %w", err)
+	}
+
+	return p, nil
+}
+
 // AI stuff
+func capitalizeFirst(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
+}
 
 func dump[T any](in T) (string, error) {
 	str, err := json.Marshal(&in)
@@ -266,10 +309,6 @@ func dump[T any](in T) (string, error) {
 	spew.Fdump(&buf, &in, string(str))
 
 	return buf.String(), nil
-}
-
-func capitalizeFirst(s string) string {
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func (c *Client) gpt(prompt string) (response string, err error) {
