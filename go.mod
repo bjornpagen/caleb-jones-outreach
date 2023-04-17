@@ -2,6 +2,8 @@ module github.com/bjornpagen/caleb-jones-outreach
 
 go 1.20
 
+replace github.com/bjornpagen/airtable-go => ../airtable-go
+
 require (
 	github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018
 	github.com/bjornpagen/prospety-go v0.0.0-20230416225100-37324f0c457a

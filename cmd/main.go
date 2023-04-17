@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	openai "github.com/sashabaranov/go-openai"
@@ -98,10 +99,8 @@ func (s *Server) run() error {
 	// 		return fmt.Errorf("failed to marshal lead: %w", err)
 	// 	}
 	// 	strings = append(strings, string(str))
+	// 	println(string(str))
 	// }
-
-	// // Print all the Leads
-	// spew.Dump(strings)
 
 	// res, err := s.gpt("Hello")
 	// if err != nil {
@@ -110,19 +109,40 @@ func (s *Server) run() error {
 
 	// fmt.Println(res)
 
-	res, err := dumpType[Activity]()
+	// Get all the prospects
+	prospects, err := s.getProspects()
 	if err != nil {
-		return fmt.Errorf("failed to dump type: %w", err)
+		return fmt.Errorf("failed to get prospects: %w", err)
 	}
 
-	prompt := fmt.Sprintf("Generate CREATIVE sample data for the following data structure. Respond only in JSON, with no additional text. Response must be valid JSON because it is fed directly into an Unmarshall function. \n\n%s\n\n", res)
-
-	res, err = s.gpt(prompt)
-	if err != nil {
-		return fmt.Errorf("failed to get gpt: %w", err)
+	// convert all to leadDetails
+	var leads []leadDetails
+	for _, prospect := range prospects {
+		leads = append(leads, *prospectToLeadDetails(prospect))
 	}
 
-	fmt.Println(res)
+	// convert all to Lead
+	var airtableLeads []Lead
+	for _, lead := range leads {
+		airtableLeads = append(airtableLeads, Lead{
+			leadDetails: lead,
+			salesDetails: salesDetails{
+				Assignee: airtable.User{
+					Id: "usrVUTmD0O5A2eaEW",
+				},
+				Status: airtable.ShortText(""),
+			},
+		})
+	}
+
+	// create it
+	res, err := s.leadDb.Create(airtableLeads)
+	if err != nil {
+		return fmt.Errorf("failed to create lead: %w", err)
+	}
+
+	// print it
+	spew.Dump(res)
 
 	return nil
 }
@@ -151,13 +171,23 @@ func (s *Server) getProspects() ([]prospety.Prospect, error) {
 // Airtable Types
 
 type Lead struct {
-	Assignee   airtable.User         `json:"Assignee"`
-	Topic      airtable.SingleSelect `json:"Topic"`
-	Status     airtable.ShortText    `json:"Status"`
-	Name       airtable.ShortText    `json:"Name"`
-	FollowersK airtable.Number       `json:"Followers (K)"`
-	Platform   airtable.SingleSelect `json:"Platform"`
-	Link       airtable.URL          `json:"Link"`
+	salesDetails
+	leadDetails
+}
+
+type leadDetails struct {
+	Topic      airtable.SingleSelect `json:"Topic,omitempty"`
+	Name       airtable.ShortText    `json:"Name,omitempty"`
+	FollowersK airtable.Number       `json:"Followers (K),omitempty"`
+	Platform   airtable.SingleSelect `json:"Platform,omitempty"`
+	Link       airtable.URL          `json:"Link,omitempty"`
+	Email      airtable.Email        `json:"Email,omitempty"`
+	Phone      airtable.Phone        `json:"Phone,omitempty"`
+}
+
+type salesDetails struct {
+	Assignee airtable.User      `json:"Assignee,omitempty"`
+	Status   airtable.ShortText `json:"Status,omitempty"`
 }
 
 type Activity struct {
@@ -176,6 +206,37 @@ func NewLeadDB(c *airtable.Client) *airtable.Table[Lead] {
 
 func NewActivityDB(c *airtable.Client) *airtable.Table[Activity] {
 	return airtable.NewTable[Activity](c, "appl2x7vwQfJClY42", "tblfPpzBCMhjXRCJg")
+}
+
+// Utils
+
+func dump[T any](in T) (string, error) {
+	str, err := json.Marshal(&in)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal lead: %w", err)
+	}
+
+	// create buffer to hold the result of spew
+	var buf bytes.Buffer
+	spew.Fdump(&buf, &in, string(str))
+
+	return buf.String(), nil
+}
+
+func prospectToLeadDetails(prospect prospety.Prospect) *leadDetails {
+	return &leadDetails{
+		//Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
+		Name:       airtable.ShortText(prospect.Name),
+		FollowersK: airtable.Number(prospect.Subscribers / 1000),
+		Platform:   airtable.SingleSelect("YouTube"),
+		Link:       airtable.URL(prospect.URL),
+		Email:      airtable.Email(prospect.Email),
+		Phone:      airtable.Phone(prospect.Phone),
+	}
+}
+
+func capitalizeFirst(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // AI stuff
@@ -201,16 +262,5 @@ func (s *Server) gpt(prompt string) (response string, err error) {
 	return response, nil
 }
 
-func dumpType[T any]() (string, error) {
-	empty := new(T)
-	str, err := json.Marshal(empty)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal lead: %w", err)
-	}
-
-	// create buffer to hold the result of spew
-	var buf bytes.Buffer
-	spew.Fdump(&buf, empty, string(str))
-
-	return buf.String(), nil
-}
+const copypastaOnlyJSON = "Respond only in JSON, with no additional text. Response must be valid JSON because it is fed directly into an Unmarshal function."
+const copypastaAirtableTypes = "Remember: airtable.SingleSelect = string, airtable.ShortText = string, airtable.Number = float64, airtable.URL = string, airtable.User = string"
