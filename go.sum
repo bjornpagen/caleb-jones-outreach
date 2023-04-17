@@ -1,5 +1,7 @@
 github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 h1:MzBOUgng9orim59UnfUTLRjMpd09C5uEVQ6RPGeCaVI=
 github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129/go.mod h1:rFgpPQZYZ8vdbc+48xibu8ALc3yeyd64IhHS+PU6Yyg=
+github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018 h1:w/wUuorvj7f2fYGOjmcGPnpLSzMJSMvf8tVX4Z6kwA4=
+github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018/go.mod h1:DFuKukvPwIqWMbX38ils2g3qSnGQK6PXzNxerUq73/g=
 github.com/bjornpagen/prospety-go v0.0.0-20230416225100-37324f0c457a h1:1WgoOmsSLna+FHu2uyFsj6pr//ls//9yVg90SjLmZZY=
 github.com/bjornpagen/prospety-go v0.0.0-20230416225100-37324f0c457a/go.mod h1:vQxo8q5bq0YC6Ay/twN2EOUa/AVuew3Fi3kcLu0q3Ho=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

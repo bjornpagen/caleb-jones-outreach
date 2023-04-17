@@ -9,7 +9,7 @@ import (
 	prospety "github.com/bjornpagen/prospety-go"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/bjornpagen/caleb-jones-outreach/airtable"
+	airtable "github.com/bjornpagen/airtable-go"
 )
 
 var (
