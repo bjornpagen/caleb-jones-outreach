@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	openai "github.com/sashabaranov/go-openai"
+	"github.com/spf13/cobra"
 
 	airtable "github.com/bjornpagen/airtable-go"
 	prospety "github.com/bjornpagen/prospety-go"
@@ -36,19 +37,41 @@ func init() {
 	if _openaiKey == "" {
 		log.Fatal("OPENAI_KEY is required")
 	}
+
+	// Add subcommands
+	rootCmd.AddCommand(mergeCmd)
 }
 
+var (
+	rootCmd = &cobra.Command{
+		Use:   "main",
+		Short: "A CLI tool to manage leads and activities",
+	}
+
+	mergeCmd = &cobra.Command{
+		Use:   "merge",
+		Short: "Upload new Prospety Prospects to Airtable Leads",
+		Run:   runMerge,
+	}
+)
+
 func main() {
-	s, err := New(_prospetyKey, _airtableKey, _openaiKey)
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runMerge(cmd *cobra.Command, args []string) {
+	c, err := New(_prospetyKey, _airtableKey, _openaiKey)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := s.run(); err != nil {
+	if err := c.mergeProspetyLeads(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-type Server struct {
+type Client struct {
 	pc *prospety.Client
 	db *airtable.Client
 	oc *openai.Client
@@ -57,7 +80,7 @@ type Server struct {
 	activityDb *airtable.Table[Activity]
 }
 
-func New(prospetyKey, airtableKey, openaiKey string) (*Server, error) {
+func New(prospetyKey, airtableKey, openaiKey string) (*Client, error) {
 	pc, err := prospety.New(prospetyKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prospety client: %w", err)
@@ -68,49 +91,58 @@ func New(prospetyKey, airtableKey, openaiKey string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create airtable client: %w", err)
 	}
 
-	return &Server{
+	c := &Client{
 		pc: pc,
 		db: db,
 		oc: openai.NewClient(openaiKey),
-	}, nil
+	}
+
+	c.leadDb = NewLeadDB(c.db)
+	c.activityDb = NewActivityDB(c.db)
+
+	return c, nil
 }
 
-func (s *Server) run() error {
-	s.leadDb = NewLeadDB(s.db)
-	s.activityDb = NewActivityDB(s.db)
+func (c *Client) getProspects() ([]prospety.Prospect, error) {
+	// Get all the searches
+	searches, err := c.pc.GetSearches()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get projects: %w", err)
+	}
 
-	// // get all leads
-	// leads, err := s.leadDb.List()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to get leads: %w", err)
-	// }
+	// For each search, get the any (underlying []YoutubeProspect), and coerce to []YoutubeProspect
+	var youtubeProspects []prospety.Prospect
+	for _, search := range searches {
+		prospects, err := c.pc.GetProspects(search.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get prospects: %w", err)
+		}
 
-	// // Unwrap all the Leads
-	// var airtableLeads []Lead
-	// for _, lead := range leads {
-	// 	airtableLeads = append(airtableLeads, *lead.Fields)
-	// }
+		youtubeProspects = append(youtubeProspects, prospects...)
+	}
 
-	// // Marshall all the Leads to JSON
-	// var strings []string
-	// for _, lead := range airtableLeads {
-	// 	str, err := json.Marshal(lead)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to marshal lead: %w", err)
-	// 	}
-	// 	strings = append(strings, string(str))
-	// 	println(string(str))
-	// }
+	return youtubeProspects, nil
+}
 
-	// res, err := s.gpt("Hello")
-	// if err != nil {
-	// 	return fmt.Errorf("failed to get gpt: %w", err)
-	// }
+func (c *Client) getAirtableLeads() ([]Lead, error) {
+	// get all leads
+	leads, err := c.leadDb.List()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get leads: %w", err)
+	}
 
-	// fmt.Println(res)
+	// Unwrap all the Leads
+	var airtableLeads []Lead
+	for _, lead := range leads {
+		airtableLeads = append(airtableLeads, *lead.Fields)
+	}
 
+	return airtableLeads, nil
+}
+
+func (c *Client) mergeProspetyLeads() error {
 	// Get all the prospects
-	prospects, err := s.getProspects()
+	prospects, err := c.getProspects()
 	if err != nil {
 		return fmt.Errorf("failed to get prospects: %w", err)
 	}
@@ -135,37 +167,36 @@ func (s *Server) run() error {
 		})
 	}
 
+	// fetch all airtable leads
+	upstreamLeads, err := c.getAirtableLeads()
+	if err != nil {
+		return fmt.Errorf("failed to get airtable leads: %w", err)
+	}
+
+	// create an map[airtable.Email]Lead from airtable leads
+	upstreamLeadsMap := make(map[airtable.Email]Lead)
+	for _, lead := range upstreamLeads {
+		upstreamLeadsMap[lead.Email] = lead
+	}
+
+	// for each lead in airtableLeads, check if it exists in upstreamLeadsMap
+	// create a new slice of airtableLeads that only contains the ones that don't exist
+	var newLeads []Lead
+	for _, lead := range airtableLeads {
+		if _, ok := upstreamLeadsMap[lead.Email]; !ok {
+			newLeads = append(newLeads, lead)
+		}
+	}
+
 	// create it
-	res, err := s.leadDb.Create(airtableLeads)
+	res, err := c.leadDb.Create(newLeads)
 	if err != nil {
 		return fmt.Errorf("failed to create lead: %w", err)
 	}
 
-	// print it
-	spew.Dump(res)
+	log.Printf("Created %d new leads", len(res))
 
 	return nil
-}
-
-func (s *Server) getProspects() ([]prospety.Prospect, error) {
-	// Get all the searches
-	searches, err := s.pc.GetSearches()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get projects: %w", err)
-	}
-
-	// For each search, get the any (underlying []YoutubeProspect), and coerce to []YoutubeProspect
-	var youtubeProspects []prospety.Prospect
-	for _, search := range searches {
-		prospects, err := s.pc.GetProspects(search.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get prospects: %w", err)
-		}
-
-		youtubeProspects = append(youtubeProspects, prospects...)
-	}
-
-	return youtubeProspects, nil
 }
 
 // Airtable Types
@@ -210,6 +241,20 @@ func NewActivityDB(c *airtable.Client) *airtable.Table[Activity] {
 
 // Utils
 
+func prospectToLeadDetails(prospect prospety.Prospect) *leadDetails {
+	return &leadDetails{
+		//Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
+		Name:       airtable.ShortText(prospect.Name),
+		FollowersK: airtable.Number(prospect.Subscribers / 1000),
+		Platform:   airtable.SingleSelect("YouTube"),
+		Link:       airtable.URL(prospect.URL),
+		Email:      airtable.Email(prospect.Email),
+		Phone:      airtable.Phone(prospect.Phone),
+	}
+}
+
+// AI stuff
+
 func dump[T any](in T) (string, error) {
 	str, err := json.Marshal(&in)
 	if err != nil {
@@ -223,25 +268,12 @@ func dump[T any](in T) (string, error) {
 	return buf.String(), nil
 }
 
-func prospectToLeadDetails(prospect prospety.Prospect) *leadDetails {
-	return &leadDetails{
-		//Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
-		Name:       airtable.ShortText(prospect.Name),
-		FollowersK: airtable.Number(prospect.Subscribers / 1000),
-		Platform:   airtable.SingleSelect("YouTube"),
-		Link:       airtable.URL(prospect.URL),
-		Email:      airtable.Email(prospect.Email),
-		Phone:      airtable.Phone(prospect.Phone),
-	}
-}
-
 func capitalizeFirst(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// AI stuff
-func (s *Server) gpt(prompt string) (response string, err error) {
-	res, err := s.oc.CreateChatCompletion(
+func (c *Client) gpt(prompt string) (response string, err error) {
+	res, err := c.oc.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
 			Model: openai.GPT3Dot5Turbo,
@@ -261,6 +293,3 @@ func (s *Server) gpt(prompt string) (response string, err error) {
 	response = res.Choices[0].Message.Content
 	return response, nil
 }
-
-const copypastaOnlyJSON = "Respond only in JSON, with no additional text. Response must be valid JSON because it is fed directly into an Unmarshal function."
-const copypastaAirtableTypes = "Remember: airtable.SingleSelect = string, airtable.ShortText = string, airtable.Number = float64, airtable.URL = string, airtable.User = string"
