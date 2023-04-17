@@ -6,6 +6,7 @@ require (
 	github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018
 	github.com/bjornpagen/prospety-go v0.0.0-20230416225100-37324f0c457a
 	github.com/davecgh/go-spew v1.1.1
+	github.com/sashabaranov/go-openai v1.8.0
 )
 
 require (

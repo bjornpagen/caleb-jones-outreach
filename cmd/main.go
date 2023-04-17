@@ -1,25 +1,30 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 
-	prospety "github.com/bjornpagen/prospety-go"
 	"github.com/davecgh/go-spew/spew"
+	openai "github.com/sashabaranov/go-openai"
 
 	airtable "github.com/bjornpagen/airtable-go"
+	prospety "github.com/bjornpagen/prospety-go"
 )
 
 var (
 	_prospetyKey string
 	_airtableKey string
+	_openaiKey   string
 )
 
 func init() {
 	_prospetyKey = os.Getenv("PROSPETY_KEY")
 	_airtableKey = os.Getenv("AIRTABLE_KEY")
+	_openaiKey = os.Getenv("OPENAI_KEY")
 
 	if _prospetyKey == "" {
 		log.Fatal("PROSPETY_KEY is required")
@@ -27,10 +32,13 @@ func init() {
 	if _airtableKey == "" {
 		log.Fatal("AIRTABLE_KEY is required")
 	}
+	if _openaiKey == "" {
+		log.Fatal("OPENAI_KEY is required")
+	}
 }
 
 func main() {
-	s, err := New(_prospetyKey, _airtableKey)
+	s, err := New(_prospetyKey, _airtableKey, _openaiKey)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,9 +50,13 @@ func main() {
 type Server struct {
 	pc *prospety.Client
 	db *airtable.Client
+	oc *openai.Client
+
+	leadDb     *airtable.Table[Lead]
+	activityDb *airtable.Table[Activity]
 }
 
-func New(prospetyKey, airtableKey string) (*Server, error) {
+func New(prospetyKey, airtableKey, openaiKey string) (*Server, error) {
 	pc, err := prospety.New(prospetyKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prospety client: %w", err)
@@ -58,36 +70,59 @@ func New(prospetyKey, airtableKey string) (*Server, error) {
 	return &Server{
 		pc: pc,
 		db: db,
+		oc: openai.NewClient(openaiKey),
 	}, nil
 }
 
 func (s *Server) run() error {
-	leadDb := NewLeadDB(s.db)
+	s.leadDb = NewLeadDB(s.db)
+	s.activityDb = NewActivityDB(s.db)
 
-	// get all leads
-	leads, err := leadDb.List()
+	// // get all leads
+	// leads, err := s.leadDb.List()
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get leads: %w", err)
+	// }
+
+	// // Unwrap all the Leads
+	// var airtableLeads []Lead
+	// for _, lead := range leads {
+	// 	airtableLeads = append(airtableLeads, *lead.Fields)
+	// }
+
+	// // Marshall all the Leads to JSON
+	// var strings []string
+	// for _, lead := range airtableLeads {
+	// 	str, err := json.Marshal(lead)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to marshal lead: %w", err)
+	// 	}
+	// 	strings = append(strings, string(str))
+	// }
+
+	// // Print all the Leads
+	// spew.Dump(strings)
+
+	// res, err := s.gpt("Hello")
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get gpt: %w", err)
+	// }
+
+	// fmt.Println(res)
+
+	res, err := dumpType[Activity]()
 	if err != nil {
-		return fmt.Errorf("failed to get leads: %w", err)
+		return fmt.Errorf("failed to dump type: %w", err)
 	}
 
-	// Unwrap all the Leads
-	var airtableLeads []Lead
-	for _, lead := range leads {
-		airtableLeads = append(airtableLeads, *lead.Fields)
+	prompt := fmt.Sprintf("Generate CREATIVE sample data for the following data structure. Respond only in JSON, with no additional text. Response must be valid JSON because it is fed directly into an Unmarshall function. \n\n%s\n\n", res)
+
+	res, err = s.gpt(prompt)
+	if err != nil {
+		return fmt.Errorf("failed to get gpt: %w", err)
 	}
 
-	// Marshall all the Leads to JSON
-	var strings []string
-	for _, lead := range airtableLeads {
-		str, err := json.Marshal(lead)
-		if err != nil {
-			return fmt.Errorf("failed to marshal lead: %w", err)
-		}
-		strings = append(strings, string(str))
-	}
-
-	// Print all the Leads
-	spew.Dump(strings)
+	fmt.Println(res)
 
 	return nil
 }
@@ -141,4 +176,41 @@ func NewLeadDB(c *airtable.Client) *airtable.Table[Lead] {
 
 func NewActivityDB(c *airtable.Client) *airtable.Table[Activity] {
 	return airtable.NewTable[Activity](c, "appl2x7vwQfJClY42", "tblfPpzBCMhjXRCJg")
+}
+
+// AI stuff
+func (s *Server) gpt(prompt string) (response string, err error) {
+	res, err := s.oc.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create chat completion: %w", err)
+	}
+
+	response = res.Choices[0].Message.Content
+	return response, nil
+}
+
+func dumpType[T any]() (string, error) {
+	empty := new(T)
+	str, err := json.Marshal(empty)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal lead: %w", err)
+	}
+
+	// create buffer to hold the result of spew
+	var buf bytes.Buffer
+	spew.Fdump(&buf, empty, string(str))
+
+	return buf.String(), nil
 }
