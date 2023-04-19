@@ -1,17 +1,7 @@
 github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 h1:MzBOUgng9orim59UnfUTLRjMpd09C5uEVQ6RPGeCaVI=
 github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129/go.mod h1:rFgpPQZYZ8vdbc+48xibu8ALc3yeyd64IhHS+PU6Yyg=
-github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018 h1:w/wUuorvj7f2fYGOjmcGPnpLSzMJSMvf8tVX4Z6kwA4=
-github.com/bjornpagen/airtable-go v0.0.0-20230417112227-a52bd310d018/go.mod h1:DFuKukvPwIqWMbX38ils2g3qSnGQK6PXzNxerUq73/g=
-github.com/bjornpagen/airtable-go v0.0.0-20230419122735-83c5b63b90af h1:8UlISCb9QzjBvDuxEtpp0JhiHjMnhANX2QwrOf2Vmps=
-github.com/bjornpagen/airtable-go v0.0.0-20230419122735-83c5b63b90af/go.mod h1:wqwLU9GWmRPiV0AvXAvUqNfDjm3Y8zBChl/v70RToWI=
 github.com/bjornpagen/prospety-go v0.0.0-20230419124505-35de688fdf3d h1:kE8mo9tkE28StgaMwToeWX1wzxwEBc/26OcC4h9iIOM=
 github.com/bjornpagen/prospety-go v0.0.0-20230419124505-35de688fdf3d/go.mod h1:vQxo8q5bq0YC6Ay/twN2EOUa/AVuew3Fi3kcLu0q3Ho=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419143247-d93af6c3868b h1:UJuW9xGzq5vtLugzsYHjy6IX0zvHAkwk3Vk4yCkdiwg=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419143247-d93af6c3868b/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419150417-3bb73c15a90f h1:y/B03+8/6Hnr4OjqBMH85VBoDG6xpRJMOIimIuzp50E=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419150417-3bb73c15a90f/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419155410-b72f7044b30f h1:LUwAAx1PI0kAw6gz7rfs5njarTz8djdET3yBUFKAzxk=
-github.com/bjornpagen/youtube-apis v0.0.0-20230419155410-b72f7044b30f/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
 github.com/bjornpagen/youtube-apis v0.0.0-20230419161116-8945d1c8a56c h1:5x5JbjDck7VFxoEetqM8LSZjvHctf233Bn5TzRUl53E=
 github.com/bjornpagen/youtube-apis v0.0.0-20230419161116-8945d1c8a56c/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

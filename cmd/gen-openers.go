@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -13,7 +12,6 @@ import (
 	airtable "github.com/bjornpagen/airtable-go"
 	mediadownloader "github.com/bjornpagen/youtube-apis/mediadownloader"
 	transcriptor "github.com/bjornpagen/youtube-apis/transcriptor"
-	openai "github.com/sashabaranov/go-openai"
 	"go.uber.org/ratelimit"
 
 	"github.com/spf13/cobra"
@@ -55,7 +53,7 @@ func (c *Client) genOpeners() error {
 			log.Printf("failed to parse youtube channel id from %s: %v", lead.Fields.Link, err)
 			continue
 		}
-		channelIdMap[lead.Id] = channelId
+		channelIdMap[lead.ID] = channelId
 	}
 
 	// now we have all the channel ids, let's get their latest video, and fetch the transcript
@@ -98,19 +96,12 @@ func (c *Client) genOpeners() error {
 
 		// update the airtable lead
 		lead := Lead{
-			leadDetails: leadDetails{
-				Opener: airtable.ShortText(opener),
-			},
-			salesDetails: salesDetails{
-				Assignee: airtable.User{
-					Id: "usrVUTmD0O5A2eaEW",
-				},
-				Status: airtable.ShortText("generated-opener"),
-			},
+			Opener: airtable.ShortText(opener),
+			Status: airtable.ShortText("generated-opener"),
 		}
 
 		rec := airtable.Record[Lead]{
-			Id:     airtableId,
+			ID:     airtableId,
 			Fields: &lead,
 		}
 
@@ -173,11 +164,10 @@ answer bullet by bullet, numbered.
 The following video was made by a YouTuber. I am reaching out to them to offer them a partnership in a JV program. I need to come across as a true fan and highly "into" his content! Best way to do this is by giving specific examples in the video when you felt strong emotions. Come across as human as possible: the job with the first line is to truly demonstrate that I'm not just sending him an email sequence, but a highly personalized and target outreach manually written.
 	
 You MUST:
-1. write only in lowercase
-2. drop any introduction, such as "hi [name]", as this is already in the email template. i only need the first line, which will be templated into my existing email sequence
-3. you cannot, under ANY CIRCUMSTANCES, give a vague or incoherent answer!
-4. do not MAKE UP ANECDOTES ABOUT YOURSELF, talk ONLY ABOUT THE CREATOR's VIDEO AND HOW GREAT HE/SHE IS AT CONTENT
-5. ONLY WRITE IN FIRST PERSON
+1. drop any introduction, such as "hi [name]", as this is already in the email template. i only need the first line, which will be templated into my existing email sequence
+2. you cannot, under ANY CIRCUMSTANCES, give a vague or incoherent answer!
+3. do not MAKE UP ANECDOTES ABOUT YOURSELF, talk ONLY ABOUT THE CREATOR's VIDEO AND HOW GREAT HE/SHE IS AT CONTENT
+4. ONLY WRITE IN FIRST PERSON, ONLY USE PRESENT TENSE
 
 here is some info about the video to help you with your task: i asked ChatGPT these following questions, and here are his responses:
 --
@@ -185,59 +175,29 @@ here is some info about the video to help you with your task: i asked ChatGPT th
 --
 
 REMEMBER: Start your response with:
-“i watch your videos all the time! i…”
+“i loved your latest video! i…”
 
-keep your response all lowercase ONLY, and limit your response to 3 sentences total.
+limit your response to 2 sentences total: use the above info to talk about your favorite part of the video and how you reacted.
 `
 
+	// first call
 	content := fmt.Sprintf(prompt1, transcript)
-
-	// execute the first prompt, get the response, and Sprintf it into the second prompt
-	// execute the second prompt, get the response, and return it
-	res, err := c.oc.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: content,
-				},
-			},
-		},
-	)
+	res, err := c.gpt(content)
 	if err != nil {
 		return "", fmt.Errorf("failed to create chat completion: %w", err)
 	}
-
-	resString := res.Choices[0].Message.Content
 
 	// now do the second call
-
-	content = fmt.Sprintf(prompt2, resString)
-
-	res, err = c.oc.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: content,
-				},
-			},
-		},
-	)
+	content = fmt.Sprintf(prompt2, res)
+	res, err = c.gpt(content)
 	if err != nil {
-		return "", fmt.Errorf("failed to create chat completion: %w", err)
+		return "", fmt.Errorf("failed to generate opener: %w", err)
 	}
 
-	resString = res.Choices[0].Message.Content
-
 	// ai is dumb, force the string to be lowercase
-	resString = strings.ToLower(resString)
+	res = strings.ToLower(res)
 
-	return resString, nil
+	return res, nil
 }
 
 // parse youtube channel id or handle from the youtube url

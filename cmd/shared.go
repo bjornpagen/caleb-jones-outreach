@@ -56,11 +56,6 @@ func (c *Client) getAirtableLeads() ([]Lead, error) {
 // Airtable Types
 
 type Lead struct {
-	salesDetails
-	leadDetails
-}
-
-type leadDetails struct {
 	Topic      airtable.SingleSelect `json:"Topic,omitempty"`
 	Name       airtable.ShortText    `json:"Name,omitempty"`
 	FollowersK airtable.Number       `json:"Followers (K),omitempty"`
@@ -70,11 +65,8 @@ type leadDetails struct {
 	Phone      airtable.Phone        `json:"Phone,omitempty"`
 	Gob        airtable.ShortText    `json:"Gob,omitempty"`
 	Opener     airtable.ShortText    `json:"Opener,omitempty"`
-}
-
-type salesDetails struct {
-	Assignee airtable.User      `json:"Assignee,omitempty"`
-	Status   airtable.ShortText `json:"Status,omitempty"`
+	Assignee   *airtable.User        `json:"Assignee,omitempty"`
+	Status     airtable.ShortText    `json:"Status,omitempty"`
 }
 
 type Activity struct {
@@ -95,14 +87,14 @@ func NewActivityDB(c *airtable.Client) *airtable.Table[Activity] {
 	return airtable.NewTable[Activity](c, "appl2x7vwQfJClY42", "tblfPpzBCMhjXRCJg")
 }
 
-func prospectToLeadDetails(prospect prospety.Prospect) *leadDetails {
+func prospectToLeadDetails(prospect prospety.Prospect) *Lead {
 	// turn the whole prospect into a base64 encoded gob
 	gobStr, err := encodeStringGob(&prospect)
 	if err != nil {
 		log.Fatalf("failed to encode prospect: %v", err)
 	}
 
-	return &leadDetails{
+	return &Lead{
 		Topic:      airtable.SingleSelect(capitalizeFirst(prospect.Keywords[0])),
 		Name:       airtable.ShortText(prospect.Name),
 		FollowersK: airtable.Number(prospect.Subscribers / 1000),

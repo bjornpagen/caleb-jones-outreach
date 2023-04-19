@@ -25,27 +25,15 @@ func (c *Client) mergeProspetyLeads() error {
 		return fmt.Errorf("failed to merge: %w", err)
 	}
 
-	// convert all to leadDetails
-	var leads []leadDetails
+	var leads []Lead
 	for _, prospect := range prospects {
 		leads = append(leads, *prospectToLeadDetails(prospect))
-	}
-
-	// convert all to Lead
-	var airtableLeads []Lead
-	for _, lead := range leads {
-		airtableLeads = append(airtableLeads, Lead{
-			leadDetails: lead,
-			salesDetails: salesDetails{
-				Status: airtable.ShortText(""),
-			},
-		})
 	}
 
 	// filter through all leads and remove any leads with duplicate email addresses
 	// create a map[airtable.Email]Lead
 	airtableLeadsMap := make(map[airtable.Email]Lead)
-	for _, lead := range airtableLeads {
+	for _, lead := range leads {
 		airtableLeadsMap[lead.Email] = lead
 	}
 
@@ -56,7 +44,7 @@ func (c *Client) mergeProspetyLeads() error {
 	}
 
 	// set airtableLeads to uniqueLeads
-	airtableLeads = uniqueLeads
+	leads = uniqueLeads
 
 	// fetch all airtable leads
 	upstreamLeads, err := c.getAirtableLeads()
@@ -73,7 +61,7 @@ func (c *Client) mergeProspetyLeads() error {
 	// for each lead in airtableLeads, check if it exists in upstreamLeadsMap
 	// create a new slice of airtableLeads that only contains the ones that don't exist
 	var newLeads []Lead
-	for _, lead := range airtableLeads {
+	for _, lead := range leads {
 		if _, ok := upstreamLeadsMap[lead.Email]; !ok {
 			newLeads = append(newLeads, lead)
 		}
