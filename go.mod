@@ -7,7 +7,7 @@ replace github.com/bjornpagen/airtable-go => ../airtable-go
 require (
 	github.com/bjornpagen/airtable-go v0.0.0-20230419201855-56961997633f
 	github.com/bjornpagen/prospety-go v0.0.0-20230419124505-35de688fdf3d
-	github.com/bjornpagen/youtube-apis v0.0.0-20230419161116-8945d1c8a56c
+	github.com/bjornpagen/youtube-apis v0.0.0-20230419211303-292690a94743
 	github.com/davecgh/go-spew v1.1.1
 	github.com/sashabaranov/go-openai v1.8.0
 	github.com/spf13/cobra v1.7.0

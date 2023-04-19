@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
+	"go.uber.org/ratelimit"
 
 	airtable "github.com/bjornpagen/airtable-go"
 	prospety "github.com/bjornpagen/prospety-go"
@@ -82,6 +84,8 @@ type Client struct {
 	tr *transcriptor.Client
 	md *mediadownloader.Client
 
+	gptLimiter ratelimit.Limiter
+
 	leadDb     *airtable.Table[Lead]
 	activityDb *airtable.Table[Activity]
 }
@@ -108,11 +112,12 @@ func New(prospetyKey, airtableKey, openaiKey, transcriptorKey, mediadownloaderKe
 	}
 
 	c := &Client{
-		pc: pc,
-		db: db,
-		oc: openai.NewClient(openaiKey),
-		tr: tr,
-		md: md,
+		pc:         pc,
+		db:         db,
+		oc:         openai.NewClient(openaiKey),
+		tr:         tr,
+		md:         md,
+		gptLimiter: ratelimit.New(1, ratelimit.Per(time.Second)),
 	}
 
 	c.leadDb = NewLeadDB(c.db)

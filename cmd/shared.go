@@ -155,6 +155,7 @@ func dump[T any](in T) (string, error) {
 }
 
 func (c *Client) gpt(prompt string) (response string, err error) {
+	c.gptLimiter.Take()
 	res, err := c.oc.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{

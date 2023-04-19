@@ -7,12 +7,11 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
+	"sync"
 
 	airtable "github.com/bjornpagen/airtable-go"
 	mediadownloader "github.com/bjornpagen/youtube-apis/mediadownloader"
 	transcriptor "github.com/bjornpagen/youtube-apis/transcriptor"
-	"go.uber.org/ratelimit"
 
 	"github.com/spf13/cobra"
 )
@@ -44,79 +43,97 @@ func (c *Client) genOpeners() error {
 
 	log.Printf("found %d leads to generate openers for", len(leadsToGen))
 
-	// store the data in a map of airtable id => youtube channel id or handle
-	channelIdMap := make(map[string]string)
+	// generate openers for all leads, concurrently
+	var wg sync.WaitGroup
+	leadsToUpdate := make(chan airtable.Record[Lead], len(leadsToGen))
 	for _, lead := range leadsToGen {
-		// attempt to parse from lead.Link, if fail, just continue
-		channelId, err := parseYoutubeChannelId(string(lead.Fields.Link))
-		if err != nil {
-			log.Printf("failed to parse youtube channel id from %s: %v", lead.Fields.Link, err)
-			continue
-		}
-		channelIdMap[lead.ID] = channelId
+		wg.Add(1)
+		go func(lead airtable.Record[Lead]) {
+			defer wg.Done()
+			updatedLead, err := c.updateSingleOpener(lead.ID, lead.Fields)
+			if err != nil {
+				log.Printf("failed to update lead %s: %s", lead.ID, err.Error())
+				return
+			}
+			leadsToUpdate <- *updatedLead
+		}(lead)
 	}
 
-	// now we have all the channel ids, let's get their latest video, and fetch the transcript
-	var leadsToUpdate []airtable.Record[Lead]
-	gptLimiter := ratelimit.New(1, ratelimit.Per(time.Second))
-	for airtableId, channelId := range channelIdMap {
-		// get latest video
-		video, err := c.getLatestVideo(channelId)
-		if err != nil {
-			log.Printf("failed to get latest video for %s: %v", channelId, err)
-			continue
-		}
+	// wait for all the openers to be generated
+	wg.Wait()
+	close(leadsToUpdate)
 
-		// get transcript
-		transcript, err := c.getTranscript(video.ID)
-		if err != nil {
-			log.Printf("failed to get transcript for video %s: %v", video.ID, err)
-			continue
-		}
-
-		// get string of whole transcript
-		transcriptStr := transcript.String()
-
-		if len(transcriptStr) == 0 {
-			log.Printf("transcript for video %s is empty", video.ID)
-			continue
-		} else if len(transcriptStr) > 4000 {
-			// truncate to 4000 chars
-			transcriptStr = transcriptStr[:4000]
-		}
-
-		// generate the opener
-		log.Printf("generating opener for %s", video.ID)
-		gptLimiter.Take()
-		opener, err := c.genOpener(transcriptStr)
-		if err != nil {
-			log.Printf("failed to generate opener for %s: %v", transcriptStr, err)
-			continue
-		}
-
-		// update the airtable lead
-		lead := Lead{
-			Opener: airtable.ShortText(opener),
-			Status: airtable.ShortText("generated-opener"),
-		}
-
-		rec := airtable.Record[Lead]{
-			ID:     airtableId,
-			Fields: &lead,
-		}
-
-		leadsToUpdate = append(leadsToUpdate, rec)
+	// convert chan to slice
+	var leadsToUpdateSlice []airtable.Record[Lead]
+	for lead := range leadsToUpdate {
+		leadsToUpdateSlice = append(leadsToUpdateSlice, lead)
 	}
 
 	// update the airtable leads
-	_, err = c.leadDb.Update(leadsToUpdate)
+	_, err = c.leadDb.Update(leadsToUpdateSlice)
 	if err != nil {
 		return fmt.Errorf("failed to update airtable leads: %w", err)
 	}
 
-	log.Printf("updated %d leads", len(leadsToUpdate))
+	log.Printf("updated %d leads", len(leadsToUpdateSlice))
 
 	return nil
+}
+
+func (c *Client) updateSingleOpener(recordID string, lead *Lead) (*airtable.Record[Lead], error) {
+	// use parseYoutubeChannelId(string(lead.Link))
+	// to get the channel id
+	channelId, err := parseYoutubeChannelId(string(lead.Link))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse channel id: %w", err)
+	}
+
+	// get latest video
+	video, err := c.getLatestVideo(channelId)
+	if err != nil {
+		log.Printf("failed to get latest video for %s: %v", channelId, err)
+		return nil, fmt.Errorf("failed to get latest video for %s: %w", channelId, err)
+	}
+
+	// get transcript
+	transcript, err := c.getTranscript(video.ID)
+	if err != nil {
+		log.Printf("failed to get transcript for video %s: %v", video.ID, err)
+		return nil, fmt.Errorf("failed to get transcript for video %s: %w", video.ID, err)
+	}
+
+	// get string of whole transcript
+	transcriptStr := transcript.String()
+
+	if len(transcriptStr) == 0 {
+		log.Printf("transcript for video %s is empty", video.ID)
+		return nil, fmt.Errorf("transcript for video %s is empty", video.ID)
+	} else if len(transcriptStr) > 4000 {
+		// truncate to 4000 chars
+		transcriptStr = transcriptStr[:4000]
+		log.Printf("truncated transcript for video %s to 4000 chars, lead email: %s", video.ID, lead.Email)
+	}
+
+	// generate the opener
+	log.Printf("generating opener for %s", video.ID)
+	opener, err := c.genOpener(transcriptStr)
+	if err != nil {
+		log.Printf("failed to generate opener for %s: %v", transcriptStr, err)
+		return nil, fmt.Errorf("failed to generate opener for %s: %w", transcriptStr, err)
+	}
+
+	// update the airtable lead
+	lead = &Lead{
+		Opener: airtable.ShortText(opener),
+		Status: airtable.ShortText("generated-opener"),
+	}
+
+	rec := airtable.Record[Lead]{
+		ID:     recordID,
+		Fields: lead,
+	}
+
+	return &rec, nil
 }
 
 func (c *Client) getLatestVideo(channelId string) (*mediadownloader.Video, error) {
@@ -196,6 +213,11 @@ limit your response to 2 sentences total: use the above info to talk about your 
 
 	// ai is dumb, force the string to be lowercase
 	res = strings.ToLower(res)
+
+	// check if the string is quoted, if so, remove the quotes
+	if strings.HasPrefix(res, `"`) && strings.HasSuffix(res, `"`) {
+		res = res[1 : len(res)-1]
+	}
 
 	return res, nil
 }
