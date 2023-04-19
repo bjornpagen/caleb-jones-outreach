@@ -146,7 +146,7 @@ func (c *Client) mergeProspetyLeads() error {
 	// Get all the prospects
 	prospects, err := c.getProspects()
 	if err != nil {
-		return fmt.Errorf("failed to get prospects: %w", err)
+		return fmt.Errorf("failed to merge: %w", err)
 	}
 
 	// convert all to leadDetails
