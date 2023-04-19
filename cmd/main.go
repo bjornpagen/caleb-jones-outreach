@@ -169,6 +169,22 @@ func (c *Client) mergeProspetyLeads() error {
 		})
 	}
 
+	// filter through all leads and remove any leads with duplicate email addresses
+	// create a map[airtable.Email]Lead
+	airtableLeadsMap := make(map[airtable.Email]Lead)
+	for _, lead := range airtableLeads {
+		airtableLeadsMap[lead.Email] = lead
+	}
+
+	// create a new slice of airtableLeads that only contains the unique ones
+	var uniqueLeads []Lead
+	for _, lead := range airtableLeadsMap {
+		uniqueLeads = append(uniqueLeads, lead)
+	}
+
+	// set airtableLeads to uniqueLeads
+	airtableLeads = uniqueLeads
+
 	// fetch all airtable leads
 	upstreamLeads, err := c.getAirtableLeads()
 	if err != nil {
