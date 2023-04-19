@@ -6,6 +6,12 @@ github.com/bjornpagen/airtable-go v0.0.0-20230419122735-83c5b63b90af h1:8UlISCb9
 github.com/bjornpagen/airtable-go v0.0.0-20230419122735-83c5b63b90af/go.mod h1:wqwLU9GWmRPiV0AvXAvUqNfDjm3Y8zBChl/v70RToWI=
 github.com/bjornpagen/prospety-go v0.0.0-20230419124505-35de688fdf3d h1:kE8mo9tkE28StgaMwToeWX1wzxwEBc/26OcC4h9iIOM=
 github.com/bjornpagen/prospety-go v0.0.0-20230419124505-35de688fdf3d/go.mod h1:vQxo8q5bq0YC6Ay/twN2EOUa/AVuew3Fi3kcLu0q3Ho=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419143247-d93af6c3868b h1:UJuW9xGzq5vtLugzsYHjy6IX0zvHAkwk3Vk4yCkdiwg=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419143247-d93af6c3868b/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419150417-3bb73c15a90f h1:y/B03+8/6Hnr4OjqBMH85VBoDG6xpRJMOIimIuzp50E=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419150417-3bb73c15a90f/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419155410-b72f7044b30f h1:LUwAAx1PI0kAw6gz7rfs5njarTz8djdET3yBUFKAzxk=
+github.com/bjornpagen/youtube-apis v0.0.0-20230419155410-b72f7044b30f/go.mod h1:UdqFoMVvyvoVzW6L0ECrcIZXCca7ZrZYiUvmOpgTWyQ=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
