@@ -36,7 +36,7 @@ func (c *Client) genOpeners() error {
 	// filter out all leads that already have an opener
 	var leadsToGen []airtable.Record[Lead]
 	for _, lead := range upstreamLeads {
-		if lead.Fields.Opener == "" && lead.Fields.Status == "ready" {
+		if lead.Fields.Opener == "" && lead.Fields.Status == "ready" && lead.Fields.Assignee.Name == "Bjorn Pagen" {
 			leadsToGen = append(leadsToGen, lead)
 		}
 	}
@@ -45,37 +45,51 @@ func (c *Client) genOpeners() error {
 
 	// generate openers for all leads, concurrently
 	var wg sync.WaitGroup
-	leadsToUpdate := make(chan airtable.Record[Lead], len(leadsToGen))
+	leadsToUpdateSuccesses := make(chan airtable.Record[Lead], len(leadsToGen))
+	leadsToUpdateFailures := make(chan airtable.Record[Lead], len(leadsToGen))
 	for _, lead := range leadsToGen {
 		wg.Add(1)
 		go func(lead airtable.Record[Lead]) {
 			defer wg.Done()
-			updatedLead, err := c.updateSingleOpener(lead.ID, lead.Fields)
+			successfullyUpdated, err := c.updateSingleOpener(lead.ID, lead.Fields)
 			if err != nil {
 				log.Printf("failed to update lead %s: %s", lead.ID, err.Error())
+
+				// update the status to failed
+				rec := airtable.Record[Lead]{ID: lead.ID, Fields: &Lead{Status: "failed-opener"}}
+				leadsToUpdateFailures <- rec
+
 				return
 			}
-			leadsToUpdate <- *updatedLead
+			leadsToUpdateSuccesses <- *successfullyUpdated
 		}(lead)
 	}
 
 	// wait for all the openers to be generated
 	wg.Wait()
-	close(leadsToUpdate)
+	close(leadsToUpdateSuccesses)
+	close(leadsToUpdateFailures)
 
 	// convert chan to slice
 	var leadsToUpdateSlice []airtable.Record[Lead]
-	for lead := range leadsToUpdate {
+	for lead := range leadsToUpdateSuccesses {
 		leadsToUpdateSlice = append(leadsToUpdateSlice, lead)
 	}
+	log.Printf("%d successful leads", len(leadsToUpdateSlice))
+
+	// convert chan to slice
+	var leadsToUpdateFailuresSlice []airtable.Record[Lead]
+	for lead := range leadsToUpdateFailures {
+		leadsToUpdateFailuresSlice = append(leadsToUpdateFailuresSlice, lead)
+	}
+	log.Printf("%d failed leads", len(leadsToUpdateFailuresSlice))
+	leadsToUpdateSlice = append(leadsToUpdateSlice, leadsToUpdateFailuresSlice...)
 
 	// update the airtable leads
 	_, err = c.leadDb.Update(leadsToUpdateSlice)
 	if err != nil {
 		return fmt.Errorf("failed to update airtable leads: %w", err)
 	}
-
-	log.Printf("updated %d leads", len(leadsToUpdateSlice))
 
 	return nil
 }
@@ -104,14 +118,14 @@ func (c *Client) updateSingleOpener(recordID string, lead *Lead) (*airtable.Reco
 
 	// get string of whole transcript
 	transcriptStr := transcript.String()
+	truncVal := 6000
 
 	if len(transcriptStr) == 0 {
 		log.Printf("transcript for video %s is empty", video.ID)
 		return nil, fmt.Errorf("transcript for video %s is empty", video.ID)
-	} else if len(transcriptStr) > 4000 {
-		// truncate to 4000 chars
-		transcriptStr = transcriptStr[:4000]
-		log.Printf("truncated transcript for video %s to 4000 chars, lead email: %s", video.ID, lead.Email)
+	} else if len(transcriptStr) > truncVal {
+		transcriptStr = transcriptStr[:truncVal]
+		log.Printf("truncated transcript for video %s to %d chars, lead email: %s", video.ID, truncVal, lead.Email)
 	}
 
 	// generate the opener
@@ -176,12 +190,10 @@ answer bullet by bullet, numbered.
 %s
 	`
 
-	prompt2 := `You are now FirstLineWriterGPT. You are a raving fan of this youtuber, and his content is your favorite on the internet. Write a highly personalized first line response to a video, relating it to your own experiences or beliefs, while referencing a specific part or quote from the video without mentioning the video's topic. Demonstrate that you have watched the video with specific examples from the video. Write ONLY the first line in lowercase.
-
-The following video was made by a YouTuber. I am reaching out to them to offer them a partnership in a JV program. I need to come across as a true fan and highly "into" his content! Best way to do this is by giving specific examples in the video when you felt strong emotions. Come across as human as possible: the job with the first line is to truly demonstrate that I'm not just sending him an email sequence, but a highly personalized and target outreach manually written.
+	prompt2 := `You are now FirstLineWriterGPT. You are a raving fan of this youtuber, and his content is your favorite on the internet. Write a highly personalized "first line" in an email to the YouTuber. Demonstrate that you have watched the video with specific examples from the video. Come across as human as possible: the job with the first line is to truly demonstrate that I'm not just sending him an email sequence, but a highly personalized and target outreach manually written.
 	
 You MUST:
-1. drop any introduction, such as "hi [name]", as this is already in the email template. i only need the first line, which will be templated into my existing email sequence
+1. not include any introduction, such as "hi steven,", as this is already in the email template. i only need the first line, which will be templated into my existing email sequence
 2. you cannot, under ANY CIRCUMSTANCES, give a vague or incoherent answer!
 3. do not MAKE UP ANECDOTES ABOUT YOURSELF, talk ONLY ABOUT THE CREATOR's VIDEO AND HOW GREAT HE/SHE IS AT CONTENT
 4. ONLY WRITE IN FIRST PERSON, ONLY USE PRESENT TENSE
@@ -194,7 +206,7 @@ here is some info about the video to help you with your task: i asked ChatGPT th
 REMEMBER: Start your response with:
 “i loved your latest video! i…”
 
-limit your response to 2 sentences total: use the above info to talk about your favorite part of the video and how you reacted.
+limit your response to 2 sentences total: cite specific events from the video and tell which was your favorite (to demonstrate you watched it).
 `
 
 	// first call
@@ -218,6 +230,12 @@ limit your response to 2 sentences total: use the above info to talk about your 
 	if strings.HasPrefix(res, `"`) && strings.HasSuffix(res, `"`) {
 		res = res[1 : len(res)-1]
 	}
+
+	// cut off trailing hashtags
+	res = strings.Split(res, "#")[0]
+
+	// cut off trailing whitespace
+	res = strings.TrimSpace(res)
 
 	return res, nil
 }
