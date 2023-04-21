@@ -36,7 +36,7 @@ func (c *Client) genOpeners() error {
 	// filter out all leads that already have an opener
 	var leadsToGen []airtable.Record[Lead]
 	for _, lead := range upstreamLeads {
-		if lead.Fields.Opener == "" && lead.Fields.Status == "ready" && lead.Fields.Assignee.Name == "Bjorn Pagen" {
+		if lead.Fields.Status == "ready-opener" && lead.Fields.Assignee.Name == "Bjorn Pagen" {
 			leadsToGen = append(leadsToGen, lead)
 		}
 	}
@@ -139,7 +139,7 @@ func (c *Client) updateSingleOpener(recordID string, lead *Lead) (*airtable.Reco
 	// update the airtable lead
 	lead = &Lead{
 		Opener: airtable.ShortText(opener),
-		Status: airtable.ShortText("generated-opener"),
+		Status: airtable.ShortText("success-opener"),
 	}
 
 	rec := airtable.Record[Lead]{

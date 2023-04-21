@@ -56,17 +56,19 @@ func (c *Client) getAirtableLeads() ([]Lead, error) {
 // Airtable Types
 
 type Lead struct {
-	Topic      airtable.SingleSelect `json:"Topic,omitempty"`
-	Name       airtable.ShortText    `json:"Name,omitempty"`
-	FollowersK airtable.Number       `json:"Followers (K),omitempty"`
-	Platform   airtable.SingleSelect `json:"Platform,omitempty"`
-	Link       airtable.URL          `json:"Link,omitempty"`
-	Email      airtable.Email        `json:"Email,omitempty"`
-	Phone      airtable.Phone        `json:"Phone,omitempty"`
-	Gob        airtable.ShortText    `json:"Gob,omitempty"`
-	Opener     airtable.ShortText    `json:"Opener,omitempty"`
-	Assignee   *airtable.User        `json:"Assignee,omitempty"`
-	Status     airtable.ShortText    `json:"Status,omitempty"`
+	Topic         airtable.SingleSelect `json:"Topic,omitempty"`
+	Name          airtable.ShortText    `json:"Name,omitempty"`
+	FollowersK    airtable.Number       `json:"Followers (K),omitempty"`
+	Platform      airtable.SingleSelect `json:"Platform,omitempty"`
+	Link          airtable.URL          `json:"Link,omitempty"`
+	Email         airtable.Email        `json:"Email,omitempty"`
+	Phone         airtable.Phone        `json:"Phone,omitempty"`
+	Gob           airtable.ShortText    `json:"Gob,omitempty"`
+	Opener        airtable.ShortText    `json:"Opener,omitempty"`
+	Assignee      *airtable.User        `json:"Assignee,omitempty"`
+	Status        airtable.ShortText    `json:"Status,omitempty"`
+	InferredName  airtable.ShortText    `json:"Inferred Name,omitempty"`
+	InferredNiche airtable.ShortText    `json:"Inferred Niche,omitempty"`
 }
 
 type Activity struct {
@@ -126,6 +128,9 @@ func decodeStringGob(s string) (p *prospety.Prospect, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64: %w", err)
 	}
+
+	// initialize the prospect
+	p = &prospety.Prospect{}
 
 	// decode the gob into the prospect
 	dec := gob.NewDecoder(bytes.NewReader(gobBytes))

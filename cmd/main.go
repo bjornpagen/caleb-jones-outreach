@@ -50,6 +50,7 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(mergeCmd)
 	rootCmd.AddCommand(genOpeners)
+	rootCmd.AddCommand(genName)
 }
 
 var (
@@ -68,6 +69,12 @@ var (
 		Use:   "gen-openers",
 		Short: "Generate openers for all leads that don't have one",
 		Run:   runGenOpeners,
+	}
+
+	genName = &cobra.Command{
+		Use:   "gen-name",
+		Short: "Generate an email-friendly name for all leads that don't have one",
+		Run:   runGenName,
 	}
 )
 
