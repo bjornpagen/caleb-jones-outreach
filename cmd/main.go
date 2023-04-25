@@ -124,7 +124,7 @@ func New(prospetyKey, airtableKey, openaiKey, transcriptorKey, mediadownloaderKe
 		oc:         openai.NewClient(openaiKey),
 		tr:         tr,
 		md:         md,
-		gptLimiter: ratelimit.New(1, ratelimit.Per(time.Second)),
+		gptLimiter: ratelimit.New(30, ratelimit.Per(time.Minute)),
 	}
 
 	c.leadDb = NewLeadDB(c.db)
